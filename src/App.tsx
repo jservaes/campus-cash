@@ -1,13 +1,14 @@
 import {useEffect,useMemo,useState} from 'react';
-import {Plus,Trash2,Download,Upload,Wallet,SlidersHorizontal,ChartNoAxesColumn,Repeat2,Heart,ChevronDown} from 'lucide-react';
+import {Trash2,Download,Upload,Wallet,SlidersHorizontal,ChartNoAxesColumn,Repeat2,Heart,ChevronDown} from 'lucide-react';
 import {State,Kind,Frequency,MealPlan,initialState,localDate,parseLocal,weekStart,money,allTransactions,weeklyTotal,accountBalance,newId, weeksRemaining} from './logic';
 
 type Tab='home'|'activity'|'recurring'|'settings';
 const today=()=>localDate(new Date());
-const load=():State=>{try{const raw=localStorage.getItem('campus-cash-v1');if(!raw)return initialState;const saved=JSON.parse(raw) as Partial<State>;return {...initialState,...saved,accounts:saved.accounts||initialState.accounts,categories:saved.categories||initialState.categories,transactions:saved.transactions||[],recurring:saved.recurring||[]};}catch{return initialState;}};
+const load=():State=>{try{const raw=localStorage.getItem('campus-cash-v1');if(!raw)return initialState;const saved=JSON.parse(raw) as Partial<State>;return {...initialState,...saved,savingsCushion:saved.savingsCushion ?? 0,accounts:saved.accounts||initialState.accounts,categories:saved.categories||initialState.categories,transactions:saved.transactions||[],recurring:saved.recurring||[]};}catch{return initialState;}};
 const toNumber=(x:string)=>Math.max(0,Number(x)||0);
 export default function App(){
  const [state,setState]=useState<State>(load);const [tab,setTab]=useState<Tab>('home');const [showEntry,setShowEntry]=useState(false);const [editRecurring,setEditRecurring]=useState(false);const [selectedWeek,setSelectedWeek]=useState(weekStart(today()));
+ const incomeIds=['pay','savings','scholarship','gift'];
  const [kind,setKind]=useState<Kind>('expense');const [amount,setAmount]=useState('');const [category,setCategory]=useState('groceries');const [account,setAccount]=useState('checking');const [date,setDate]=useState(today());const [note,setNote]=useState('');const [frequency,setFrequency]=useState<Frequency>('monthly');const [endDate,setEndDate]=useState('');
  const [setupDone, setSetupDone] = useState(
   () => localStorage.getItem('campus-cash-setup') === 'done'
@@ -17,8 +18,20 @@ export default function App(){
  const all=useMemo(()=>allTransactions(state,today()),[state]);
  const weekEnd=localDate(new Date(parseLocal(selectedWeek).getTime()+6*86400000));
  const weekTransactions=all.filter(t=>t.date>=selectedWeek&&t.date<=weekEnd);
- const spent=weekTransactions.filter(t=>t.kind==='expense').reduce((n,t)=>n+t.amount,0);
- const weeklyBudget=state.categories.reduce((n,c)=>n+c.budget,0);
+ const spent = weekTransactions
+  .filter(t =>
+    t.kind === 'expense' &&
+    !t.id.startsWith('rec:') &&
+    !['rent', 'utilities', 'gym', 'subscriptions'].includes(t.categoryId)
+  )
+  .reduce((sum, t) => sum + t.amount, 0);
+ const weeklyBudget = state.categories
+  .filter(c =>
+    !['pay', 'savings', 'scholarship', 'gift',
+      'rent', 'utilities', 'gym', 'subscriptions'
+    ].includes(c.id)
+  )
+  .reduce((sum, c) => sum + c.budget, 0);
  const balances=state.accounts.map(a=>({...a,balance:accountBalance(a,all)}));
  const balance=balances.reduce((n,a)=>n+a.balance,0);
  const weeksLeft = weeksRemaining(state.savingsGoalDate);
@@ -47,8 +60,9 @@ const projectedBalance =
   balance + futureIncome - futureExpenses;
 
 // Weekly spending allowance
+const availableAfterCushion = projectedBalance - state.savingsCushion;
 const weeklyAllowance = weeksLeft > 0
-  ? Math.max(0, projectedBalance / weeksLeft)
+  ? Math.max(0, availableAfterCushion / weeksLeft)
   : 0;
 // Categories already covered by scheduled recurring bills
 const recurringExpenseCategories = new Set(
@@ -62,9 +76,17 @@ const recurringExpenseCategories = new Set(
 );
 
 // Weekly spending that isn't already included in fixed bills
+const fixedBillCategories = [
+  'rent',
+  'utilities',
+  'gym',
+  'subscriptions'
+];
+
 const plannedWeeklySpending = state.categories
   .filter(c =>
     !incomeIds.includes(c.id) &&
+    !fixedBillCategories.includes(c.id) &&
     !recurringExpenseCategories.has(c.id)
   )
   .reduce((sum, c) => sum + c.budget, 0);
@@ -76,6 +98,8 @@ const projectedWeeklyExpenses =
 // Money remaining after bills AND planned weekly spending
 const projectedMoneyLeft =
   projectedBalance - projectedWeeklyExpenses;
+const cushionDifference =
+  projectedMoneyLeft - state.savingsCushion;
 
 // Weekly spending difference from your break-even allowance
 const weeklyDifference =
@@ -83,7 +107,6 @@ const weeklyDifference =
  const actualIncome=all.filter(t=>t.kind==='income').reduce((n,t)=>n+t.amount,0);
  const currentMonth=today().slice(0,7);
  const monthlyExpense=all.filter(t=>t.kind==='expense'&&t.date.startsWith(currentMonth)).reduce((n,t)=>n+t.amount,0);
- const incomeIds=['pay','savings','scholarship','gift'];
  const categoryChoices=state.categories.filter(c=>
   kind==='income'
     ? incomeIds.includes(c.id) && (!editRecurring || c.id!=='savings')
@@ -183,6 +206,44 @@ const weeklyDifference =
     };
   });
 };
+const addSetupSubscription = () => {
+  setState(s => ({
+    ...s,
+    recurring: [
+      ...s.recurring,
+      {
+        id: newId(),
+        kind: 'expense',
+        categoryId: 'subscriptions',
+        accountId: s.accounts[0]?.id || 'checking',
+        amount: 0,
+        start: today(),
+        end: '',
+        note: '',
+        frequency: 'monthly'
+      }
+    ]
+  }));
+};
+
+const updateSubscription = (
+  id: string,
+  changes: Partial<State['recurring'][number]>
+) => {
+  setState(s => ({
+    ...s,
+    recurring: s.recurring.map(r =>
+      r.id === id ? { ...r, ...changes } : r
+    )
+  }));
+};
+
+const removeSubscription = (id: string) => {
+  setState(s => ({
+    ...s,
+    recurring: s.recurring.filter(r => r.id !== id)
+  }));
+};
  // CAMPUS CASH — FIRST-TIME SETUP SCREEN
 if (!setupDone) {
   return (
@@ -205,25 +266,18 @@ if (!setupDone) {
             {state.accounts.map(a => (
               <label className="formlabel" key={a.id}>
                 🏦 {a.name} starting balance ($)
-
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={a.openingBalance}
-                  onChange={e =>
+                <MoneyInput
+                value={a.openingBalance}
+                onChange={value =>
                     setState(s => ({
-                      ...s,
-                      accounts: s.accounts.map(x =>
+                    ...s,
+                    accounts: s.accounts.map(x =>
                         x.id === a.id
-                          ? {
-                              ...x,
-                              openingBalance: toNumber(e.target.value)
-                            }
-                          : x
-                      )
+                        ? { ...x, openingBalance: value }
+                        : x
+                    )
                     }))
-                  }
+                }
                 />
               </label>
             ))}
@@ -281,91 +335,89 @@ if (!setupDone) {
           </>
         )}
         {/* STEP 3: RECURRING BILLS AND INCOME */}
-{setupStep === 3 && (
-  <>
-    <h1>the bills don't stop 💸</h1>
-
-    <p>
-      Let's get your regular payments figured out.
-      Add your bills and paychecks so we can plan ahead.
-    </p>
-
-    {[
-      { id: 'rent', name: '🏠 Rent', kind: 'expense' as Kind },
-      { id: 'utilities', name: '💡 Utilities', kind: 'expense' as Kind },
-      { id: 'gym', name: '🏋️ Gym membership', kind: 'expense' as Kind },
-      { id: 'subscriptions', name: '🎧 Subscriptions', kind: 'expense' as Kind },
-      { id: 'pay', name: '💵 Paycheck', kind: 'income' as Kind }
-    ].map(item => {
-      const recurring = state.recurring.find(
-        r => r.id === `setup-${item.id}`
-      );
-
-      return (
-        <div className="setupBill" key={item.id}>
-          <h3>{item.name}</h3>
-
-          <label className="formlabel">
-            Amount ($)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-              value={recurring?.amount ?? ''}
-              onChange={e =>
-                updateSetupRecurring(item.id, item.kind, {
-                  amount: Math.max(0, Number(e.target.value) || 0)
-                })
-              }
-            />
-          </label>
-
-          {recurring && (
-            <>
-              <label className="formlabel">
-                First payment date
-                <input
-                  type="date"
-                  value={recurring.start}
-                  onChange={e =>
-                    updateSetupRecurring(item.id, item.kind, {
-                      start: e.target.value
-                    })
-                  }
-                />
-              </label>
-
-              <label className="formlabel">
-                Repeats
-                <select
-                  value={recurring.frequency}
-                  onChange={e =>
-                    updateSetupRecurring(item.id, item.kind, {
-                      frequency: e.target.value as Frequency
-                    })
-                  }
-                >
-                  <option value="weekly">Every week</option>
-                  <option value="biweekly">Every 2 weeks</option>
-                  <option value="monthly">Every month</option>
-                  <option value="yearly">Every year</option>
-                </select>
-              </label>
-            </>
-          )}
-        </div>
-      );
-    })}
-
-    <p className="sub">
-      ✨ Only add what applies to you. You can add more
-      recurring bills or income later in On Repeat 🔁.
-      Choose the next actual payment date if you've already
-      paid this month's bill.
-    </p>
-  </>
-)}
+        {setupStep === 3 && (
+          <>
+            <h1>the bills don't stop 💸</h1>
+            <p>Enter your recurring bills and paycheck dates. Each one will appear under On Repeat 🔁.</p>
+            {([
+              { id: 'rent', name: '🏠 Rent', kind: 'expense' as Kind },
+              { id: 'utilities', name: '💡 Utilities', kind: 'expense' as Kind },
+              { id: 'gym', name: '🏋️ Gym membership', kind: 'expense' as Kind },
+              { id: 'pay', name: '💵 Paycheck', kind: 'income' as Kind }
+            ]).map(item => {
+              const recurring = state.recurring.find(r => r.id === `setup-${item.id}`);
+              return (
+                <div className="setupBill" key={item.id}>
+                  <h3>{item.name}</h3>
+                  <label className="formlabel">
+                    Amount ($)
+                    <MoneyInput
+                      value={recurring?.amount ?? 0}
+                      onChange={value => updateSetupRecurring(item.id, item.kind, {amount: value})}
+                    />
+                  </label>
+                  {recurring && (
+                    <>
+                      <label className="formlabel">Next payment date
+                        <input type="date" value={recurring.start}
+                          onChange={e => updateSetupRecurring(item.id, item.kind, {start:e.target.value})}/>
+                      </label>
+                      <label className="formlabel">Repeats
+                        <select value={recurring.frequency}
+                          onChange={e => updateSetupRecurring(item.id, item.kind, {frequency:e.target.value as Frequency})}>
+                          <option value="weekly">Every week</option>
+                          <option value="biweekly">Every 2 weeks</option>
+                          <option value="monthly">Every month</option>
+                          <option value="yearly">Every year</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            <div className="setupBill">
+              <h3>🎧 Your subscriptions</h3>
+              <p>Add each subscription separately. No mental math required!</p>
+              {state.recurring.filter(r => r.categoryId === 'subscriptions' && r.kind === 'expense')
+                .map(r => (
+                  <div className="setupSubscription" key={r.id}>
+                    <label className="formlabel">Subscription name
+                      <input placeholder="Hulu, Spotify, iCloud..." value={r.note}
+                        onChange={e=>updateSubscription(r.id,{note:e.target.value})}/>
+                    </label>
+                    <label className="formlabel">Amount ($)
+                      <MoneyInput value={r.amount} onChange={value=>updateSubscription(r.id,{amount:value})}/>
+                    </label>
+                    <label className="formlabel">Next billing date
+                      <input type="date" value={r.start}
+                        onChange={e=>updateSubscription(r.id,{start:e.target.value})}/>
+                    </label>
+                    <label className="formlabel">Repeats
+                      <select value={r.frequency}
+                        onChange={e=>updateSubscription(r.id,{frequency:e.target.value as Frequency})}>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Every 2 weeks</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
+                    </label>
+                    <button type="button" className="outline" onClick={()=>removeSubscription(r.id)}>
+                      🗑️ Remove subscription
+                    </button>
+                  </div>
+                ))}
+              <button type="button" className="outline" onClick={addSetupSubscription}>
+                ＋ Add another subscription
+              </button>
+              <p className="sub">Monthly equivalent: {money(
+                state.recurring.filter(r=>r.categoryId==='subscriptions' && r.kind==='expense')
+                  .reduce((sum,r)=>sum+r.amount*(r.frequency==='weekly'?52/12:r.frequency==='biweekly'?26/12:r.frequency==='yearly'?1/12:1),0)
+              )}</p>
+            </div>
+            <p className="sub">Choose the next actual billing date if you already paid this month's bill.</p>
+          </>
+        )}
 
         {/* STEP 4: FLEXIBLE WEEKLY BUDGETS */}
         {setupStep === 4 && (
@@ -386,7 +438,7 @@ if (!setupDone) {
 
             {state.categories
               .filter(c =>
-                !['pay', 'savings', 'scholarship', 'gift'].includes(c.id) &&
+                !['pay', 'savings', 'scholarship', 'gift', 'rent', 'utilities', 'gym', 'subscriptions'].includes(c.id) &&
                 !recurringExpenseCategories.has(c.id)
                 )
               .map(c => (
@@ -396,19 +448,16 @@ if (!setupDone) {
                 >
                   {c.emoji} {c.name}
 
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
+                  <MoneyInput
                     value={c.budget}
-                    onChange={e =>
+                    onChange={value =>
                       setState(s => ({
                         ...s,
                         categories: s.categories.map(x =>
                           x.id === c.id
                             ? {
                                 ...x,
-                                budget: toNumber(e.target.value)
+                                budget: value
                               }
                             : x
                         )
@@ -440,6 +489,10 @@ if (!setupDone) {
           }))
         }
       />
+    </label>
+    <label className="formlabel">💗 Money you want to keep at the end ($)
+      <MoneyInput value={state.savingsCushion}
+        onChange={value => setState(prev=>({...prev,savingsCushion:value}))}/>
     </label>
 
     <p>
@@ -531,7 +584,7 @@ if (!setupDone) {
   <div className="survivalComparison">
 
     <div className="survivalSection">
-      <h3>🎯 Your break-even budget</h3>
+      <h3>🎯 Your goal-safe weekly budget</h3>
       <h2>{money(weeklyAllowance)} / week</h2>
       <p>
         What you can spend weekly to make your money
@@ -549,29 +602,52 @@ if (!setupDone) {
 
   </div>
 
-  {/* SECTION 3: FINAL PROJECTION */}
-  <div className="survivalSection">
-    <h3>💗 Your projected money left</h3>
+{/* SECTION 3: FINAL PROJECTION */}
+<div className="survivalSection">
+  <h3>💗 Your end-of-semester outlook</h3>
 
-    <h1 className={
-      projectedMoneyLeft < 0 ? 'negative' : 'positive'
-    }>
-      {money(projectedMoneyLeft)}
-    </h1>
+  <div className="survivalComparison">
+    <div>
+      <p>💸 Projected ending balance</p>
+      <h2>{money(projectedMoneyLeft)}</h2>
+      <p className="sub">
+        If you follow your planned weekly spending.
+      </p>
+    </div>
 
-    <p>
-      Estimated balance on {state.savingsGoalDate}
-      if you follow your planned weekly spending.
-    </p>
-
-    <p className="sub">
-      {weeklyDifference >= 0
-        ? `You're budgeting ${money(weeklyDifference)} less per week than your break-even allowance! ✨`
-        : `Your planned spending is ${money(Math.abs(weeklyDifference))} above your break-even allowance per week.`}
-    </p>
+    <div>
+      <p>💗 Money above your savings goal</p>
+      <h2 className={
+        cushionDifference >= 0 ? 'positive' : 'negative'
+      }>
+        {money(cushionDifference)}
+      </h2>
+      <p className="sub">
+        After reserving {money(state.savingsCushion)} 
+         for your savings goal.
+      </p>
+    </div>
   </div>
+
+  <hr />
+
+  <p>🎯 Savings goal: {money(state.savingsCushion)}</p>
+
+  <p className={
+    cushionDifference >= 0 ? 'positive' : 'negative'
+  }>
+    {cushionDifference >= 0
+      ? `✨ You're on track to finish ${money(cushionDifference)} above your goal!`
+      : `You're projected to finish ${money(Math.abs(cushionDifference))} short of your goal.`}
+  </p>
+
+  <p className="sub">
+    Based on your weekly budgets and scheduled transactions
+    through {state.savingsGoalDate}.
+  </p>
 </div>
- 
+</div> {/* end semester survival panel */}
+
   <div className="stats"><div className="stat"><div>💸</div><span>This week's spending</span><strong>{money(spent)}</strong><small>of {money(weeklyBudget)} planned</small></div><div className="stat"><div>📅</div><span>Spent this month</span><strong>{money(monthlyExpense)}</strong><small>{currentMonth}</small></div><div className="stat"><div>💰</div><span>Income recorded</span><strong>{money(actualIncome)}</strong><small>since you started tracking</small></div></div>
   <div className="panel"><div className="paneltop"><div><h2>weekly vibe check 🪩</h2><p>Monday – Sunday</p></div><input aria-label="Choose week" type="date" value={selectedWeek} onChange={e=>setSelectedWeek(weekStart(e.target.value))}/></div><div className="meter"><div style={{width:`${Math.min(100,weeklyBudget?spent/weeklyBudget*100:0)}%`}}/></div><p className="sub">{money(spent)} spent of {money(weeklyBudget)} · {spent>weeklyBudget?'over budget — you got this next week!':'looking good, keep it up'}</p><div className="categories">{state.categories.filter(c=>c.budget>0).map(c=>{const used=weeklyTotal(weekTransactions,c.id,selectedWeek);return <div className="category" key={c.id}><div className="catline"><span className="catname">{c.emoji} {c.name}</span><span>{money(used)} <span className="muted">/ {money(c.budget)}</span></span></div><div className="smallmeter"><div className={used>c.budget?'over':''} style={{width:`${Math.min(100,used/c.budget*100)}%`}}/></div></div>})}</div></div>
   <div className="panel"><div className="paneltop"><h2>your accounts 🏦</h2><button className="textbtn" onClick={()=>setTab('settings')}>edit <ChevronDown size={13}/></button></div><div className="accountgrid">{balances.map(a=><div key={a.id} className="accountbox"><div>{a.name}</div><strong>{money(a.balance)}</strong></div>)}</div></div>
@@ -579,11 +655,236 @@ if (!setupDone) {
  </>}
  {tab==='activity'&&<div className="panel page"><div className="paneltop"><div><h1>the money diary 📒</h1><p>Every latte, paycheck, and questionable Saturday.</p></div><button className="primary small" onClick={()=>resetForm('single')}>＋ Add</button></div><TransactionList items={all.slice(0,250)} cat={cat} onDelete={removeTx}/><p className="sub">Recurring entries have a ↻ symbol and are generated automatically on their due dates.</p></div>}
  {tab==='recurring'&&<div className="panel page"><div className="paneltop"><div><h1>on repeat 🔁</h1><p>Set it once. Your budget updates on each scheduled date.</p></div><button className="primary small" onClick={()=>resetForm('recurring')}>＋ New</button></div>{state.recurring.length===0?<div className="empty">Nothing on repeat yet. Add rent, utilities, gym, paychecks, or subscriptions! 💌</div>:state.recurring.map(r=><div className="transaction" key={r.id}><div className="emoji">{cat(r.categoryId)?.emoji||'✨'}</div><div className="txtext"><strong>{r.note||cat(r.categoryId)?.name}</strong><small>{r.frequency} · starts {r.start}{r.end?` · ends ${r.end}`:''} · {state.accounts.find(a=>a.id===r.accountId)?.name}</small></div><strong className={r.kind==='income'?'positive':''}>{r.kind==='income'?'+':'−'}{money(r.amount)}</strong><button className="delete" aria-label="Delete recurring schedule" onClick={()=>removeRecurring(r.id)}><Trash2 size={17}/></button></div>)}<div className="tip">💡 Heads up: payments are reflected on their dates when you open the app. No background bank transfers happen.</div></div>}
- {tab==='settings'&&<div className="page"><div className="panel"><h1>make it yours 🎀</h1><p className="sub">Your numbers stay in this browser, on this device.</p><h2 className="sectiontitle">🥗 meal plan situation</h2><p>We'll suggest a starting grocery budget. You can change it below.</p><div className="choices">{([['none','No meal plan'],['partial','Partial meal plan'],['full','Full meal plan']] as const).map(([v,t])=><button className={state.mealPlan===v?'choice active':'choice'} key={v} onClick={()=>updateMealPlan(v)}>{t}</button>)}</div><h2 className="sectiontitle">🏦 accounts & starting balances</h2>{state.accounts.map(a=><div className="settingrow" key={a.id}><input aria-label="Account name" value={a.name} onChange={e=>setState(s=>({...s,accounts:s.accounts.map(x=>x.id===a.id?{...x,name:e.target.value}:x)}))}/><label>Starting $ <input type="number" step="0.01" value={a.openingBalance} onChange={e=>setState(s=>({...s,accounts:s.accounts.map(x=>x.id===a.id?{...x,openingBalance:toNumber(e.target.value)}:x)}))}/></label><button className="delete" title="Delete account" onClick={()=>{if(state.accounts.length===1||all.some(t=>t.accountId===a.id)||state.recurring.some(r=>r.accountId===a.id))return alert('Move or remove transactions for this account before deleting it. Keep at least one account.');setState(s=>({...s,accounts:s.accounts.filter(x=>x.id!==a.id)}));}}><Trash2 size={17}/></button></div>)}<button className="outline" onClick={()=>setState(s=>({...s,accounts:[...s.accounts,{id:newId(),name:'New account',openingBalance:0}]}))}>＋ Add account</button><h2 className="sectiontitle">🎯 weekly category limits</h2><div className="budgetgrid">{state.categories.filter(c=>!['pay','savings','scholarship','gift'].includes(c.id)).map(c=><label key={c.id}>{c.emoji} {c.name}<div><span>$</span><input type="number" min="0" step="1" value={c.budget} onChange={e=>setState(s=>({...s,categories:s.categories.map(x=>x.id===c.id?{...x,budget:toNumber(e.target.value)}:x)}))}/></div></label>)}</div><h2 className="sectiontitle">💾 backup & restore</h2><p>Export regularly! Clearing browser data or changing phones can erase locally saved transactions.</p><div className="backup"><button className="outline" onClick={download}><Download size={17}/> Download backup</button><label className="outline upload"><Upload size={17}/> Import backup<input type="file" accept="application/json,.json" hidden onChange={e=>{void importData(e.target.files?.[0]);e.target.value='';}}/></label></div></div></div>}
+ {tab === 'settings' && (
+  <div className="page">
+    <div className="panel">
+      <h1>make it yours 🎀</h1>
+      <p className="sub">
+        Your numbers stay in this browser, on this device.
+      </p>
+
+      {/* MEAL PLAN */}
+      <h2 className="sectiontitle">🥗 meal plan situation</h2>
+      <p>We'll suggest a starting grocery budget. You can change it below.</p>
+
+      <div className="choices">
+        {([
+          ['none', 'No meal plan'],
+          ['partial', 'Partial meal plan'],
+          ['full', 'Full meal plan']
+        ] as const).map(([v, t]) => (
+          <button
+            key={v}
+            className={state.mealPlan === v ? 'choice active' : 'choice'}
+            onClick={() => updateMealPlan(v)}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* ACCOUNTS */}
+      <h2 className="sectiontitle">🏦 accounts & starting balances</h2>
+
+      {state.accounts.map(a => (
+        <div className="settingrow" key={a.id}>
+          <input
+            aria-label="Account name"
+            value={a.name}
+            onChange={e =>
+              setState(s => ({
+                ...s,
+                accounts: s.accounts.map(x =>
+                  x.id === a.id ? { ...x, name: e.target.value } : x
+                )
+              }))
+            }
+          />
+
+          <label>
+            Starting $
+            <MoneyInput
+              value={a.openingBalance}
+              onChange={value =>
+                setState(s => ({
+                  ...s,
+                  accounts: s.accounts.map(x =>
+                    x.id === a.id
+                      ? { ...x, openingBalance: value }
+                      : x
+                  )
+                }))
+              }
+            />
+          </label>
+
+          <button
+            className="delete"
+            title="Delete account"
+            onClick={() => {
+              if (
+                state.accounts.length === 1 ||
+                all.some(t => t.accountId === a.id) ||
+                state.recurring.some(r => r.accountId === a.id)
+              ) {
+                return alert(
+                  'Move or remove transactions for this account before deleting it. Keep at least one account.'
+                );
+              }
+
+              setState(s => ({
+                ...s,
+                accounts: s.accounts.filter(x => x.id !== a.id)
+              }));
+            }}
+          >
+            <Trash2 size={17} />
+          </button>
+        </div>
+      ))}
+
+      <button
+        className="outline"
+        onClick={() =>
+          setState(s => ({
+            ...s,
+            accounts: [
+              ...s.accounts,
+              {
+                id: newId(),
+                name: 'New account',
+                openingBalance: 0
+              }
+            ]
+          }))
+        }
+      >
+        ＋ Add account
+      </button>
+
+      {/* WEEKLY CATEGORY LIMITS */}
+      <h2 className="sectiontitle">🎯 weekly category limits</h2>
+
+      <div className="budgetgrid">
+        {state.categories
+          .filter(c =>
+            ![
+              'pay',
+              'savings',
+              'scholarship',
+              'gift',
+              'rent',
+              'utilities',
+              'gym',
+              'subscriptions'
+            ].includes(c.id)
+          )
+          .map(c => (
+            <label key={c.id}>
+              {c.emoji} {c.name}
+
+              <div>
+                <span>$</span>
+                <MoneyInput
+                  value={c.budget}
+                  onChange={value =>
+                    setState(s => ({
+                      ...s,
+                      categories: s.categories.map(x =>
+                        x.id === c.id
+                          ? { ...x, budget: value }
+                          : x
+                      )
+                    }))
+                  }
+                />
+              </div>
+            </label>
+          ))}
+      </div>
+
+      <h2 className="sectiontitle">🎓 semester savings goal</h2>
+      <label className="formlabel">Money I want left at the end ($)
+        <MoneyInput value={state.savingsCushion}
+          onChange={value => setState(prev=>({...prev,savingsCushion:value}))}/>
+      </label>
+
+      {/* BACKUP & RESTORE */}
+      <h2 className="sectiontitle">💾 backup & restore</h2>
+
+      <p>
+        Export regularly! Clearing browser data or changing phones
+        can erase locally saved transactions.
+      </p>
+
+      <div className="backup">
+        <button className="outline" onClick={download}>
+          <Download size={17} />
+          Download backup
+        </button>
+
+        <label className="outline upload">
+          <Upload size={17} />
+          Import backup
+
+          <input
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={e => {
+              void importData(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+        </label>
+      </div>
+    </div>
+  </div>
+)}
  </main>
  <nav aria-label="Main navigation"><button className={tab==='home'?'active':''} onClick={()=>setTab('home')}><Wallet size={20}/> Home</button><button className={tab==='activity'?'active':''} onClick={()=>setTab('activity')}><ChartNoAxesColumn size={20}/> Activity</button><button className={tab==='recurring'?'active':''} onClick={()=>setTab('recurring')}><Repeat2 size={20}/> Repeat</button><button className={tab==='settings'?'active':''} onClick={()=>setTab('settings')}><SlidersHorizontal size={20}/> Settings</button></nav>
  <footer>made for students who have bills & a social life <Heart size={13} fill="currentColor"/></footer>
- {showEntry&&<div className="overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setShowEntry(false)}}><div className="modal"><div className="paneltop"><div><h2>{editRecurring?'something on repeat 🔁':'new money move ✨'}</h2><p>{editRecurring?'Auto-track future due dates':'Track that money, bestie'}</p></div><button className="close" onClick={()=>setShowEntry(false)}>✕</button></div><div className="choices"><button className={kind==='expense'?'choice active':'choice'} onClick={()=>{setKind('expense');setCategory('groceries')}}>💸 Expense</button><button className={kind==='income'?'choice active':'choice'} onClick={()=>{setKind('income');setCategory('pay')}}>💰 Income</button></div><label className="formlabel">Amount ($)<input type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" autoFocus/></label><label className="formlabel">Category<select value={category} onChange={e=>setCategory(e.target.value)}>{categoryChoices.map(c=><option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}</select></label><label className="formlabel">Account<select value={account} onChange={e=>setAccount(e.target.value)}>{state.accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label className="formlabel">{editRecurring?'First date':'Date'}<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>{editRecurring&&<><label className="formlabel">Repeat<select value={frequency} onChange={e=>setFrequency(e.target.value)}><option value="weekly">Every week</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option><option value="yearly">Every year</option></select></label><label className="formlabel">End date (optional)<input type="date" min={date} value={endDate} onChange={e=>setEndDate(e.target.value)}/></label></>}<label className="formlabel">Note (optional)<input value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. Saturday night, electric bill"/></label><button className="primary full" onClick={saveEntry}>Save {editRecurring?'recurring schedule':'transaction'} ✨</button></div></div>}
+ {showEntry&&<div className="overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setShowEntry(false)}}><div className="modal"><div className="paneltop"><div><h2>{editRecurring?'something on repeat 🔁':'new money move ✨'}</h2><p>{editRecurring?'Auto-track future due dates':'Track that money, bestie'}</p></div><button className="close" onClick={()=>setShowEntry(false)}>✕</button></div><div className="choices"><button className={kind==='expense'?'choice active':'choice'} onClick={()=>{setKind('expense');setCategory('groceries')}}>💸 Expense</button><button className={kind==='income'?'choice active':'choice'} onClick={()=>{setKind('income');setCategory('pay')}}>💰 Income</button></div><label className="formlabel">Amount ($)<input type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" autoFocus/></label><label className="formlabel">Category<select value={category} onChange={e=>setCategory(e.target.value)}>{categoryChoices.map(c=><option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}</select></label><label className="formlabel">Account<select value={account} onChange={e=>setAccount(e.target.value)}>{state.accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label className="formlabel">{editRecurring?'First date':'Date'}<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>{editRecurring&&<><label className="formlabel">Repeat<select value={frequency} onChange={e=>setFrequency(e.target.value as Frequency)}><option value="weekly">Every week</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option><option value="yearly">Every year</option></select></label><label className="formlabel">End date (optional)<input type="date" min={date} value={endDate} onChange={e=>setEndDate(e.target.value)}/></label></>}<label className="formlabel">Note (optional)<input value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. Saturday night, electric bill"/></label><button className="primary full" onClick={saveEntry}>Save {editRecurring?'recurring schedule':'transaction'} ✨</button></div></div>}
  </div></div>;
 }
 function TransactionList({items,cat,onDelete}:{items:State['transactions'];cat:(id:string)=>State['categories'][number]|undefined;onDelete:(id:string)=>void}){if(!items.length)return <div className="empty">No transactions yet. It's a fresh start 🌸</div>;return <div className="transactions">{items.map(t=><div className="transaction" key={t.id}><div className="emoji">{cat(t.categoryId)?.emoji||'✨'}</div><div className="txtext"><strong>{t.note||cat(t.categoryId)?.name||'Transaction'} {t.id.startsWith('rec:')?'↻':''}</strong><small>{t.date} · {cat(t.categoryId)?.name}</small></div><strong className={t.kind==='income'?'positive':''}>{t.kind==='income'?'+':'−'}{money(t.amount)}</strong>{!t.id.startsWith('rec:')&&<button className="delete" title="Delete transaction" onClick={()=>onDelete(t.id)}><Trash2 size={16}/></button>}</div>)}</div>}
+function MoneyInput({
+  value,
+  onChange,
+  placeholder = '0.00'
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState(
+    value === 0 ? '' : String(value)
+  );
+
+  useEffect(() => {
+    setText(value === 0 ? '' : String(value));
+  }, [value]);
+
+  return (
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      placeholder={placeholder}
+      value={text}
+      onChange={e => {
+        const next = e.target.value;
+        setText(next);
+
+        if (next === '') {
+          onChange(0);
+        } else {
+          const num = Number(next);
+          if (Number.isFinite(num) && num >= 0) {
+            onChange(num);
+          }
+        }
+      }}
+    />
+  );
+}

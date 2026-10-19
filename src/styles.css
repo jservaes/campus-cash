@@ -101,3 +101,39 @@
 .setupBill .formlabel {
   margin-top: 10px;
 }
+/* Remove number input arrows in Chrome, Safari, Edge */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.setupSubscription {
+  background: white;
+  border: 1px solid #efdce9;
+  border-radius: 14px;
+  padding: 16px;
+  margin: 12px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.setupSubscription .outline {
+  justify-self: end;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}

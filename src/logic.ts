@@ -5,7 +5,7 @@ export type Category = { id: string; name: string; emoji: string; budget: number
 export type Account = { id: string; name: string; openingBalance: number };
 export type Transaction = { id: string; date: string; amount: number; kind: Kind; categoryId: string; accountId: string; note: string };
 export type Recurring = { id: string; start: string; end: string; amount: number; kind: Kind; categoryId: string; accountId: string; note: string; frequency: Frequency };
-export type State = { accounts: Account[]; categories: Category[]; transactions: Transaction[]; recurring: Recurring[]; mealPlan: MealPlan; mealPlanEdited: boolean; savingsGoalDate: string };
+export type State = { accounts: Account[]; categories: Category[]; transactions: Transaction[]; recurring: Recurring[]; mealPlan: MealPlan; mealPlanEdited: boolean; savingsGoalDate: string, savingsCushion: number};
 export const CATEGORIES: Category[] = [
   {id:'groceries',name:'Groceries',emoji:'🥑',budget:75},
   {id:'weekend',name:'Weekend fun',emoji:'🎉',budget:70},
@@ -26,7 +26,7 @@ export const CATEGORIES: Category[] = [
 ];
 export const initialState: State = {
   accounts:[{id:'checking',name:'Checking',openingBalance:0},{id:'savings',name:'Savings',openingBalance:0}],
-  categories:CATEGORIES, transactions:[],recurring:[],mealPlan:'none',mealPlanEdited:false,savingsGoalDate:'2027-06-28'
+  categories:CATEGORIES, transactions:[],recurring:[],mealPlan:'none',mealPlanEdited:false,savingsGoalDate:'2027-06-28',savingsCushion:0
 };
 export function localDate(date: Date): string {return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;}
 export function parseLocal(ymd:string):Date { const [y,m,d]=ymd.split('-').map(Number);return new Date(y,m-1,d,12); }
