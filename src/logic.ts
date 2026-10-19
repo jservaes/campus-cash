@@ -20,6 +20,7 @@ export const CATEGORIES: Category[] = [
   {id:'subscriptions',name:'Subscriptions',emoji:'🎧',budget:10},
   {id:'other',name:'Miscellaneous',emoji:'✨',budget:20},
   {id:'pay',name:'Paycheck',emoji:'💵',budget:0},
+  {id:'savings',name:'Savings / Starting Money',emoji:'🏦',budget:0},
   {id:'scholarship',name:'Aid & scholarships',emoji:'🎓',budget:0},
   {id:'gift',name:'Gifts & other income',emoji:'🎁',budget:0},
 ];
@@ -57,3 +58,14 @@ export function allTransactions(state:State,through:string){return [...state.tra
 export function weeklyTotal(items:Transaction[],categoryId:string,week:string){const end=localDate(addDays(parseLocal(week),6));return items.filter(t=>t.kind==='expense'&&t.categoryId===categoryId&&t.date>=week&&t.date<=end).reduce((s,t)=>s+t.amount,0);}
 export function accountBalance(account:Account,transactions:Transaction[]){return account.openingBalance+transactions.filter(t=>t.accountId===account.id).reduce((s,t)=>s+(t.kind==='income'?t.amount:-t.amount),0);}
 export function newId(){return crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`;}
+export function weeksRemaining(goalDate: string): number {
+  const today = parseLocal(localDate(new Date()));
+  const end = parseLocal(goalDate);
+
+  const days = Math.max(
+    0,
+    Math.ceil((end.getTime() - today.getTime()) / 86400000)
+  );
+
+  return Math.ceil(days / 7);
+}
