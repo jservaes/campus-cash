@@ -5,7 +5,6 @@ import {State,Kind,Frequency,MealPlan,initialState,localDate,parseLocal,weekStar
 type Tab='home'|'activity'|'recurring'|'settings';
 const today=()=>localDate(new Date());
 const load=():State=>{try{const raw=localStorage.getItem('campus-cash-v1');if(!raw)return initialState;const saved=JSON.parse(raw) as Partial<State>;return {...initialState,...saved,savingsCushion:saved.savingsCushion ?? 0,accounts:saved.accounts||initialState.accounts,categories:saved.categories||initialState.categories,transactions:saved.transactions||[],recurring:saved.recurring||[]};}catch{return initialState;}};
-const toNumber=(x:string)=>Math.max(0,Number(x)||0);
 export default function App(){
  const [state,setState]=useState<State>(load);const [tab,setTab]=useState<Tab>('home');const [showEntry,setShowEntry]=useState(false);const [editRecurring,setEditRecurring]=useState(false);const [selectedWeek,setSelectedWeek]=useState(weekStart(today()));
  const incomeIds=['pay','savings','scholarship','gift'];
@@ -102,8 +101,6 @@ const cushionDifference =
   projectedMoneyLeft - state.savingsCushion;
 
 // Weekly spending difference from your break-even allowance
-const weeklyDifference =
-  weeklyAllowance - plannedWeeklySpending;
  const actualIncome=all.filter(t=>t.kind==='income').reduce((n,t)=>n+t.amount,0);
  const currentMonth=today().slice(0,7);
  const monthlyExpense=all.filter(t=>t.kind==='expense'&&t.date.startsWith(currentMonth)).reduce((n,t)=>n+t.amount,0);
