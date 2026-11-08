@@ -137,3 +137,68 @@ input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
 }
+:root {
+  --color-primary: #D77CA4;
+  --color-background: #FFF3F7;
+  --color-surface: #FFFFFF;
+  --color-text: #622A47;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+.app {
+  min-height: 100vh;
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+.card {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.primary-button {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+}
+/* Add to the bottom of src/styles.css */
+.themeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.themeOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #622a47);
+  font: inherit;
+  cursor: pointer;
+}
+.themeOption.selected {
+  border-color: var(--color-primary, #d77ca4);
+}
+.themeOption:focus-visible {
+  outline: 3px solid var(--color-primary, #d77ca4);
+  outline-offset: 2px;
+}
+.themeSwatch {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+@media (max-width: 420px) {
+  .themeGrid { grid-template-columns: 1fr; }
+}

@@ -1,6 +1,9 @@
 import {useEffect,useMemo,useState} from 'react';
 import {Trash2,Download,Upload,Wallet,SlidersHorizontal,ChartNoAxesColumn,Repeat2,Heart,ChevronDown} from 'lucide-react';
-import {State,Kind,Frequency,MealPlan,initialState,localDate,parseLocal,weekStart,money,allTransactions,weeklyTotal,accountBalance,newId, weeksRemaining} from './logic';
+import type { State, Kind, Frequency, MealPlan } from './logic';
+import { initialState, localDate, parseLocal, weekStart, money, allTransactions, weeklyTotal, accountBalance, newId, weeksRemaining } from './logic';
+import { themes } from './themes';
+import { useTheme } from './useTheme';
 
 type Tab='home'|'activity'|'recurring'|'settings';
 const today=()=>localDate(new Date());
@@ -12,7 +15,8 @@ export default function App(){
  const [setupDone, setSetupDone] = useState(
   () => localStorage.getItem('campus-cash-setup') === 'done'
  );
- const [setupStep, setSetupStep] = useState(1);
+ const [setupStep, setSetupStep] = useState(0);
+ const { theme, setTheme } = useTheme();
  useEffect(()=>{localStorage.setItem('campus-cash-v1',JSON.stringify(state));},[state]);
  const all=useMemo(()=>allTransactions(state,today()),[state]);
  const weekEnd=localDate(new Date(parseLocal(selectedWeek).getTime()+6*86400000));
@@ -241,6 +245,11 @@ const removeSubscription = (id: string) => {
     recurring: s.recurring.filter(r => r.id !== id)
   }));
 };
+  const finishSetup = () => {
+    localStorage.setItem('campus-cash-setup', 'done');
+    setSetupDone(true);
+  };
+
  // CAMPUS CASH — FIRST-TIME SETUP SCREEN
 if (!setupDone) {
   return (
@@ -248,12 +257,36 @@ if (!setupDone) {
       <div className="setupCard">
 
         <h2>campus cash 💸</h2>
-        <p>step {setupStep} of 5 ✨</p>
+        <p>step {setupStep + 1} of 7 ✨</p>
+
+        {/* STEP 0: CHOOSE YOUR THEME */}
+        {setupStep === 0 && (
+          <>
+            <h1>first things first, pick your vibe! 🎨</h1>
+            <p>your money, your style. choose a color theme to start with!</p>
+            <div className="themeGrid" role="group" aria-label="Choose your color theme">
+              {(Object.keys(themes) as Array<keyof typeof themes>).map(id => (
+                <button
+                  type="button"
+                  key={id}
+                  className={`themeOption ${theme === id ? 'selected' : ''}`}
+                  aria-pressed={theme === id}
+                  onClick={() => setTheme(id)}
+                >
+                  <span className="themeSwatch" style={{backgroundColor: themes[id].primary}} />
+                  <span>{themes[id].name}</span>
+                  {theme === id && <span aria-hidden="true">✓</span>}
+                </button>
+              ))}
+            </div>
+            <p className="sub">✨ you can change this anytime in Settings!</p>
+          </>
+        )}
 
         {/* STEP 1: STARTING MONEY */}
         {setupStep === 1 && (
           <>
-            <h1>hey, money bestie! 💗</h1>
+            <h1>hey. time to get smart with your finances! 💸 </h1>
 
             <p>
               Let's get your money situation figured out.
@@ -471,7 +504,7 @@ if (!setupDone) {
     <h1>your semester, your money 🎓</h1>
 
     <p>
-      Last step! When does your money need to last until?
+      When does your money need to last until?
     </p>
 
     <label className="formlabel">
@@ -513,10 +546,47 @@ if (!setupDone) {
   </>
 )}
 
+        {/* STEP 6: OPTIONAL PHONE INSTALL INSTRUCTIONS */}
+        {setupStep === 6 && (
+          <>
+            <h1>take campus cash with you! 📱💗</h1>
+            <p>
+              add campus cash to your home screen for easy access —
+              no app store needed!
+            </p>
+
+            <div className="installInstructions">
+              <h3>🍎 iPhone (Safari)</h3>
+              <ol>
+                <li>Open the Campus Cash website in Safari.</li>
+                <li>Tap the Share button (the square with an arrow).</li>
+                <li>Choose “Add to Home Screen.”</li>
+                <li>Tap “Add.” You're all set! 💖</li>
+              </ol>
+
+              <h3>🤖 Android (Chrome)</h3>
+              <ol>
+                <li>Open Campus Cash in Chrome.</li>
+                <li>Tap the three-dot menu (⋮).</li>
+                <li>Choose “Install app” or “Add to Home screen.”</li>
+                <li>Confirm to add Campus Cash! ✨</li>
+              </ol>
+            </div>
+
+            <p className="sub">
+              Already installed it? No problem! You can skip this step.
+              Your budget entries are saved locally in this browser;
+              installing the app doesn't necessarily transfer existing data
+              to a separate app storage area. Use Backup &amp; Restore
+              in Settings if you need to move your data.
+            </p>
+          </>
+        )}
+
         {/* NAVIGATION BUTTONS */}
         <div className="setupButtons">
 
-          {setupStep > 1 && (
+          {setupStep > 0 && (
             <button
               className="outline"
               onClick={() =>
@@ -530,20 +600,18 @@ if (!setupDone) {
           <button
             className="primary"
             onClick={() => {
-              if (setupStep < 5) {
-                setSetupStep(s => s + 1);
+              if (setupStep < 6) {
+                setSetupStep(step => step + 1);
               } else {
-                localStorage.setItem(
-                  'campus-cash-setup',
-                  'done'
-                );
-                setSetupDone(true);
+                finishSetup();
               }
             }}
           >
-            {setupStep === 5
-              ? "Let's get budgeting! 💖"
-              : 'Next →'}
+            {setupStep === 6
+              ? "let's get budgeting! 💖"
+              : setupStep === 5
+                ? 'one last thing! 📱 →'
+                : 'Next →'}
           </button>
 
         </div>
@@ -659,6 +727,25 @@ if (!setupDone) {
       <p className="sub">
         Your numbers stay in this browser, on this device.
       </p>
+
+      {/* THEME */}
+      <h2 className="sectiontitle">🎨 color theme</h2>
+      <p>pick the colors that feel like you.</p>
+      <div className="themeGrid" role="group" aria-label="Choose your color theme">
+        {(Object.keys(themes) as Array<keyof typeof themes>).map(id => (
+          <button
+            type="button"
+            key={id}
+            className={`themeOption ${theme === id ? 'selected' : ''}`}
+            aria-pressed={theme === id}
+            onClick={() => setTheme(id)}
+          >
+            <span className="themeSwatch" style={{backgroundColor: themes[id].primary}} />
+            <span>{themes[id].name}</span>
+            {theme === id && <span aria-hidden="true">✓</span>}
+          </button>
+        ))}
+      </div>
 
       {/* MEAL PLAN */}
       <h2 className="sectiontitle">🥗 meal plan situation</h2>
