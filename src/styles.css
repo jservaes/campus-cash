@@ -202,3 +202,175 @@ body {
 @media (max-width: 420px) {
   .themeGrid { grid-template-columns: 1fr; }
 }
+
+
+/* =============================================================
+   CAMPUS CASH — GLOBAL THEME SUPPORT
+   The active palette comes from src/useTheme.ts, which writes
+   --color-primary, --color-background, --color-surface and
+   --color-text onto <html>. Keep this section LAST in styles.css.
+   ============================================================= */
+:root {
+  --color-primary: #D77CA4;
+  --color-background: #FFF3F7;
+  --color-surface: #FFFFFF;
+  --color-text: #622A47;
+}
+
+/* Derived tokens always update when the user selects a theme. */
+body, .site, .setupScreen {
+  color: var(--color-text);
+  background-color: var(--color-background);
+}
+.site {
+  background: radial-gradient(ellipse at top right,
+      color-mix(in srgb, var(--color-primary) 10%, var(--color-background)),
+      transparent 48%), var(--color-background);
+}
+.setupScreen {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-primary) 13%, var(--color-background)),
+    var(--color-background));
+}
+
+/* Surfaces and cards */
+.setupCard, .panel, .stat, .modal, nav, .setupSubscription,
+.accountbox, .setupBill, .survivalSection, .tip, .emoji {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-surface));
+}
+.accountbox, .setupBill, .survivalSection, .emoji {
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+}
+.tip {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  color: var(--color-text);
+}
+.hero {
+  color: var(--color-text);
+  background: linear-gradient(118deg,
+    color-mix(in srgb, var(--color-primary) 23%, var(--color-background)),
+    color-mix(in srgb, var(--color-primary) 9%, var(--color-surface)));
+}
+.hero:after {
+  color: color-mix(in srgb, var(--color-surface) 50%, transparent);
+}
+
+/* Text and secondary labels */
+.setupCard h1, .setupCard h2, .setupCard h3,
+.setupCard p, .setupCard label, .logo, .logo span:first-child,
+.sparkle, .hero h1, .hero .eyebrow,
+.hero p, .heroNumbers strong, .heroNumbers span,
+.accountbox strong, .accountbox div,
+.stat strong, .stat span, .catline, .catname,
+.sectiontitle, .setupBill h3, .tip, .page h1,
+.settingrow label, .budgetgrid label {
+  color: var(--color-text);
+}
+p, .sub, .muted, .tagline, .paneltop p, .txtext small,
+.stat small, .empty, footer, .setupCard p,
+.accountbox div, .stat span, .heroNumbers span {
+  color: color-mix(in srgb, var(--color-text) 69%, var(--color-background));
+}
+.logo span:first-child, .sparkle, .textbtn {
+  color: var(--color-primary);
+}
+
+/* Controls: dark foreground against light pages, light against dark. */
+.primary, .setupCard .primary {
+  background: var(--color-text);
+  color: var(--color-surface);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--color-text) 18%, transparent);
+}
+.primary:hover, .setupCard .primary:hover {
+  background: color-mix(in srgb, var(--color-text) 85%, var(--color-primary));
+  color: var(--color-surface);
+}
+.outline, .choice, .close, nav button,
+.themeOption, .textbtn {
+  color: var(--color-text);
+}
+.outline, .choice, .themeOption {
+  background: var(--color-surface);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-surface));
+}
+.choice.active, nav button.active {
+  background: color-mix(in srgb, var(--color-primary) 24%, var(--color-surface));
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+nav button { background: transparent; }
+nav { background: var(--color-surface); }
+.close {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+}
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 3px solid var(--color-primary);
+}
+
+/* Inputs — important in Midnight so text and placeholder remain readable. */
+.paneltop input, .formlabel input, .formlabel select,
+.settingrow input, .budgetgrid input,
+.setupCard input, .setupCard select, .modal input, .modal select {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--color-surface));
+}
+input::placeholder {
+  color: color-mix(in srgb, var(--color-text) 54%, var(--color-background));
+  opacity: 1;
+}
+.formlabel, .settingrow label, .budgetgrid label,
+.budgetgrid label div {
+  color: var(--color-text);
+}
+.budgetgrid label, .transaction {
+  border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-surface));
+}
+
+/* Charts, progress, and accents */
+.meter, .smallmeter {
+  background: color-mix(in srgb, var(--color-primary) 17%, var(--color-surface));
+}
+.meter > div {
+  background: linear-gradient(90deg,
+    var(--color-primary),
+    color-mix(in srgb, var(--color-primary) 70%, var(--color-text)));
+}
+.smallmeter > div { background: var(--color-primary); }
+.smallmeter > div.over { background: #d4496c; }
+.delete { color: color-mix(in srgb, var(--color-text) 55%, var(--color-background)); }
+.delete:hover { color: #d4496c; }
+
+/* Theme picker — preserve the original swatch for each palette. */
+.themeGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:20px 0; }
+.themeOption {
+  display:flex; align-items:center; gap:10px; min-width:0;
+  padding:14px; border:2px solid color-mix(in srgb, var(--color-primary) 23%, var(--color-surface));
+  border-radius:14px; background:var(--color-surface); color:var(--color-text);
+  font:inherit; cursor:pointer;
+}
+.themeOption:hover { background:color-mix(in srgb, var(--color-primary) 7%, var(--color-surface)); }
+.themeOption.selected {
+  border-color:var(--color-primary);
+  background:color-mix(in srgb, var(--color-primary) 13%, var(--color-surface));
+}
+.themeSwatch {
+  display:inline-block; width:28px; height:28px; border-radius:50%; flex-shrink:0;
+  border:1px solid color-mix(in srgb, var(--color-text) 20%, transparent);
+}
+
+/* Onboarding's phone-install help. */
+.installInstructions ol {
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+  color: var(--color-text);
+  border-radius: 14px;
+  padding: 16px 18px 16px 38px;
+}
+.installInstructions h3 { color: var(--color-text); }
+.installInstructions li { margin: 8px 0; }
+
+@media (max-width: 420px) {
+  .themeGrid { grid-template-columns:1fr; }
+}
