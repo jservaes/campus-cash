@@ -1,6 +1,6 @@
 # Campus Cash 💸 — college student budgeting PWA
 
-A playful React + TypeScript budgeting app with college-specific spending categories, configurable meal plan, two or more accounts, weekly category budgets, income and expenses, and recurring schedules.
+A React + TypeScript budgeting app with college-specific spending categories, configurable meal plan, two or more accounts, weekly category budgets, income and expenses, and recurring schedules.
 
 ## Start in VS Code
 
@@ -52,4 +52,4 @@ npm run preview
 
 ## Privacy
 
-Don't add real account balances, transactions, or other personal data to tracked source files. They are saved locally when you use the running app, not embedded in the GitHub repository. GitHub Pages websites are public even if a repository is private, so treat the deployed interface as public.
+Finances are saved locally when you use the running app, not embedded in the GitHub repository. GitHub Pages websites are public even if a repository is private, so treat the deployed interface as public.
