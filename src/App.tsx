@@ -689,7 +689,7 @@ if (!setupDone) {
       </h2>
       <p className="sub">
         After reserving {money(state.savingsCushion)} 
-         for your savings goal.
+          for your savings goal.
       </p>
     </div>
   </div>
